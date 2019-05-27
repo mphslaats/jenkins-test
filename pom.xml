@@ -11,6 +11,16 @@
 
     <build>
         <plugins>
+            <!-- https://mvnrepository.com/artifact/org.apache.maven.plugins/maven-compiler-plugin -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.8.1</version>
+                <configuration>
+                    <source>${java.version}</source>
+                    <target>${java.version}</target>
+                </configuration>
+            </plugin>
             <!-- Load custom properties file -->
             <!-- https://mvnrepository.com/artifact/org.codehaus.mojo/properties-maven-plugin -->
             <plugin>
@@ -31,13 +41,71 @@
                     </execution>
                 </executions>
             </plugin>
-            <!-- Jacoco -->
+            <plugin>
+                <!-- https://mvnrepository.com/artifact/org.apache.maven.plugins/maven-war-plugin -->
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-war-plugin</artifactId>
+                <version>3.2.2</version>
+                <!-- Prepare plugin in order to replace with other plugin -->
+                <executions>
+                    <execution>
+                        <id>prepare-war</id>
+                        <phase>prepare-package</phase>
+                        <goals>
+                            <goal>exploded</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>default-war</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>war</goal>
+                        </goals>
+                        <configuration>
+                            <warSourceDirectory>${project.build.directory}/${project.build.finalName}</warSourceDirectory>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <!-- https://mvnrepository.com/artifact/com.google.code.maven-replacer-plugin/maven-replacer-plugin -->
+                <groupId>com.google.code.maven-replacer-plugin</groupId>
+                <artifactId>replacer</artifactId>
+                <version>1.5.3</version>
+                <executions>
+                    <!-- Replace Glassfish parameters in WEB-INF folder -->
+                    <execution>
+                        <id>glassfish</id>
+                        <phase>prepare-package</phase>
+                        <goals>
+                            <goal>replace</goal>
+                        </goals>
+                        <configuration>
+                            <includes>
+                                <include>${project.build.directory}/${project.build.finalName}/WEB-INF/glassfish-web.xml</include>
+                            </includes>
+                            <replacements>
+                                <replacement>
+                                    <token>BASEURL</token>
+                                    <value>${baseurl}</value>
+                                </replacement>
+                                <replacement>
+                                    <token>CONTEXTROOT</token>
+                                    <value>${contextroot}</value>
+                                </replacement>
+                            </replacements>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <!-- SonarQube w/ Jacoco -->
             <plugin>
                 <!-- https://mvnrepository.com/artifact/org.jacoco/jacoco-maven-plugin -->
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
-                <version>0.8.3</version>
+                <version>0.8.4</version>
                 <configuration>
+                    <destFile>${sonar.jacoco.reportPath}</destFile>
                     <append>true</append>
                 </configuration>
                 <executions>
@@ -46,56 +114,29 @@
                             <goal>prepare-agent</goal>
                         </goals>
                     </execution>
-                    <execution>
-                        <id>post-unit-test</id>
-                        <phase>test</phase>
-                        <goals>
-                            <goal>report</goal>
-                        </goals>
-                    </execution>
                 </executions>
             </plugin>
-            <!-- Deploy server configuration -->
             <plugin>
-                <!-- https://mvnrepository.com/artifact/org.codehaus.cargo/cargo-maven2-plugin -->
-                <groupId>org.codehaus.cargo</groupId>
-                <artifactId>cargo-maven2-plugin</artifactId>
-                <version>1.7.3</version>
-                <configuration>
-                    <container>
-                        <containerId>glassfish5x</containerId>
-                        <type>remote</type>
-                    </container>
-                    <configuration>
-                        <type>runtime</type>
-                        <properties>
-                            <cargo.hostname>${payara.hostname}</cargo.hostname>
-                            <cargo.remote.username>${payara.username}</cargo.remote.username>
-                            <cargo.remote.password><![CDATA[${payara.password}]]></cargo.remote.password>
-                            <cargo.glassfish.domain.name>/${contextroot}</cargo.glassfish.domain.name>
-                        </properties>
-                    </configuration>
-                    <deployables>
-                        <deployable>
-                            <groupId>${project.groupId}</groupId>
-                            <artifactId>${project.artifactId}</artifactId>
-                            <type>war</type>
-                            <properties>
-                                <context>/${contextroot}</context>
-                            </properties>
-                        </deployable>
-                    </deployables>
-                </configuration>
-                <dependencies>
-                    <!-- https://mvnrepository.com/artifact/org.glassfish.main.deployment/deployment-client -->
-                    <dependency>
-                        <groupId>org.glassfish.main.deployment</groupId>
-                        <artifactId>deployment-client</artifactId>
-                        <version>5.1.0</version>
-                    </dependency>
-                </dependencies>
+                <!-- https://mvnrepository.com/artifact/org.sonarsource.scanner.maven/sonar-maven-plugin -->
+                <groupId>org.sonarsource.scanner.maven</groupId>
+                <artifactId>sonar-maven-plugin</artifactId>
+                <version>3.6.0.1398</version>
             </plugin>
-
+            <plugin>
+                <!-- https://mvnrepository.com/artifact/org.codehaus.sonar/sonar-maven-plugin -->
+                <groupId>org.codehaus.sonar</groupId>
+                <artifactId>sonar-maven-plugin</artifactId>
+                <version>5.1</version>
+            </plugin>
+            <plugin>
+                <!-- https://mvnrepository.com/artifact/org.apache.maven.plugins/maven-surefire-plugin -->
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.0.0-M3</version>
+                <configuration>
+                    <argLine>${argLine}</argLine>
+                </configuration>
+            </plugin>
         </plugins>
     </build>
 
@@ -129,13 +170,14 @@
     </dependencies>
 
     <properties>
-        <endorsed.dir>${project.build.directory}/endorsed</endorsed.dir>
-        <failOnMissingWebXml>false</failOnMissingWebXml>
+        <java.version>1.8</java.version>
+        <maven.compiler.target>${java.version}</maven.compiler.target>
+        <maven.compiler.source>${java.version}</maven.compiler.source>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
         <!-- Jacoco -->
         <sonar.core.codeCoveragePlugin>jacoco</sonar.core.codeCoveragePlugin>
-        <!-- TODO: Deprecated; use sonar.jacoco.reportPaths, does not work though -->
+        <!-- TODO: Deprecated; use sonar.jacoco.reportPaths, code coverage doesn't work when changed -->
         <sonar.jacoco.reportPath>${project.basedir}/../target/jacoco.exec</sonar.jacoco.reportPath>
     </properties>
 </project>
